@@ -2,624 +2,198 @@
 <html lang="pt">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, orientation=landscape">
-    <title>Grand City Auto 3D - Edição Ultra Realista</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Grand City Auto 3D</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
-        body {
-            font-family: 'Montserrat', sans-serif;
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            user-select: none;
-            -webkit-user-select: none;
-            background-color: #050508;
-            width: 100vw;
-            height: 100vh;
-        }
-        canvas {
-            display: block;
-            width: 100vw;
-            height: 100vh;
-        }
-        @media screen and (orientation: portrait) {
-            #rotate-device-screen {
-                display: flex !important;
-            }
-        }
-        ::-webkit-scrollbar {
-            width: 6px;
-        }
-        ::-webkit-scrollbar-track {
-            background: rgba(0, 0, 0, 0.1);
-        }
-        ::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 10px;
-        }
-        .joystick-zone {
-            width: 140px;
-            height: 140px;
-            background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 70%, rgba(255,255,255,0.08) 100%);
-            border: 1.5px solid rgba(255, 255, 255, 0.15);
-            border-radius: 50%;
-            backdrop-filter: blur(8px);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 0 20px rgba(255,255,255,0.05);
-        }
-        .joystick-stick {
-            width: 55px;
-            height: 55px;
-            background: radial-gradient(circle, #2563eb 0%, #1d4ed8 100%);
-            border: 2px solid rgba(255,255,255,0.3);
-            box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4);
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'Montserrat', sans-serif; background: #050508; }
+        canvas { display: block !important; width: 100% !important; height: 100% !important; }
     </style>
 </head>
-<body class="select-none">
+<body>
+<script>
+let scene, camera, renderer, clock;
+let player, playerVel = new THREE.Vector3();
+let buildings = [], vehicles = [], pedestrians = [];
+let inputMove = {x:0, y:0}, inputLook = {x:0, y:0};
+let camRot = {yaw:0, pitch:-0.3};
+let health = 100;
 
-    <!-- Ecrã para Rodar o Telemóvel -->
-    <div id="rotate-device-screen" class="hidden fixed inset-0 bg-slate-950 z-50 flex-col items-center justify-center p-6 text-center text-white">
-        <div class="animate-bounce mb-6 text-6xl text-blue-500">
-            <i class="fa-solid fa-rotate"></i>
-        </div>
-        <h2 class="text-2xl font-black tracking-wide mb-2 uppercase">Roda o teu Telemóvel</h2>
-        <p class="text-sm text-gray-400 max-w-sm">Para uma experiência de consola ultra realista, joga com o telemóvel na horizontal (modo deitado).</p>
-    </div>
+function init3D() {
+    clock = new THREE.Clock();
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a0c14);
+    scene.fog = new THREE.FogExp2(0x0a0c14, 0.012);
 
-    <!-- HUD Superior Esquerdo -->
-    <div class="fixed top-4 left-6 z-20 pointer-events-none flex flex-col gap-2">
-        <div class="bg-black/75 backdrop-blur-xl border border-white/10 rounded-2xl p-4 flex items-center gap-4 pointer-events-auto shadow-2xl">
-            <div class="relative">
-                <div class="w-12 h-12 rounded-full bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center border-2 border-white/20">
-                    <i class="fa-solid fa-user-ninja text-lg text-white"></i>
-                </div>
-                <div class="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 rounded-full border-2 border-slate-900 flex items-center justify-center text-[9px] text-white font-bold">✓</div>
-            </div>
-            <div class="flex flex-col">
-                <div class="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">Nível de Procurado</div>
-                <div class="flex gap-1 text-xs text-amber-400 mb-1" id="wanted-stars">
-                    <i class="fa-solid fa-star"></i>
-                    <i class="fa-regular fa-star"></i>
-                    <i class="fa-regular fa-star"></i>
-                    <i class="fa-regular fa-star"></i>
-                    <i class="fa-regular fa-star"></i>
-                </div>
-                <div class="text-lg font-black text-emerald-400 flex items-center gap-1 leading-none">
-                    <span class="text-xs font-normal text-emerald-500">$</span><span id="player-money">3,500</span>
-                </div>
-            </div>
-        </div>
+    camera = new THREE.PerspectiveCamera(55, window.innerWidth/window.innerHeight, 0.1, 1000);
+    renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.shadowMap.enabled = true;
+    document.body.appendChild(renderer.domElement);
 
-        <div class="bg-black/60 backdrop-blur-md border border-white/10 rounded-xl p-3 w-48 pointer-events-auto flex flex-col gap-2">
-            <div class="flex items-center justify-between text-[10px] text-red-400 font-bold">
-                <span>VIDA</span>
-                <span id="health-pct">100%</span>
-            </div>
-            <div class="w-full bg-zinc-800 h-2 rounded-full overflow-hidden">
-                <div id="health-bar" class="bg-gradient-to-r from-red-600 to-rose-400 h-full w-full transition-all duration-300"></div>
-            </div>
-        </div>
-    </div>
+    // Iluminação
+    let light = new THREE.DirectionalLight(0x2b3a55, 0.8);
+    light.position.set(100, 150, 50);
+    light.castShadow = true;
+    light.shadow.mapSize.width = 2048;
+    light.shadow.mapSize.height = 2048;
+    const d = 150;
+    light.shadow.camera.left = -d;
+    light.shadow.camera.right = d;
+    light.shadow.camera.top = d;
+    light.shadow.camera.bottom = -d;
+    scene.add(light);
+    scene.add(new THREE.AmbientLight(0x152035, 0.6));
 
-    <!-- HUD Superior Direito -->
-    <div class="fixed top-4 right-6 z-20 pointer-events-none flex items-start gap-4">
-        <div id="weapon-display" class="bg-black/75 backdrop-blur-xl border border-white/10 rounded-2xl p-4 text-center pointer-events-auto shadow-2xl flex flex-col items-center justify-center w-24">
-            <span class="text-[9px] text-zinc-400 font-extrabold uppercase tracking-wider mb-2">Arma</span>
-            <div id="weapon-icon" class="text-2xl text-white">
-                <i class="fa-solid fa-hand-fist"></i>
-            </div>
-            <span id="weapon-name" class="text-[10px] font-bold text-gray-400 mt-2">Punhos</span>
-        </div>
+    // Chão
+    let groundGeo = new THREE.PlaneGeometry(500, 500);
+    let groundMat = new THREE.MeshStandardMaterial({color:0x0a0a0f, roughness:0.7});
+    let ground = new THREE.Mesh(groundGeo, groundMat);
+    ground.rotation.x = -Math.PI/2;
+    ground.receiveShadow = true;
+    scene.add(ground);
 
-        <div id="car-hud" class="hidden bg-black/75 backdrop-blur-xl border border-white/10 rounded-2xl p-4 pointer-events-auto shadow-2xl flex-col gap-1 w-32">
-            <span class="text-[9px] text-zinc-400 font-extrabold uppercase tracking-wider">Velocímetro</span>
-            <div class="text-2xl font-black text-blue-400 flex items-baseline gap-0.5">
-                <span id="speedometer">0</span>
-                <span class="text-xs font-normal text-gray-500">KM/H</span>
-            </div>
-            <div class="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden mt-1">
-                <div id="rpm-bar" class="bg-blue-500 h-full w-[20%] transition-all duration-75"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Notificações -->
-    <div id="gta-notif" class="fixed top-28 left-6 bg-blue-600/90 text-white font-extrabold px-6 py-3 rounded-r-xl border-l-4 border-cyan-400 shadow-2xl pointer-events-none transition-all duration-500 opacity-0 transform -translate-x-12 z-20 text-xs tracking-widest uppercase flex items-center gap-3">
-        <i class="fa-solid fa-bell"></i> <span id="gta-notif-text">Missão Iniciada</span>
-    </div>
-
-    <!-- Controlos Táteis -->
-    <div class="fixed bottom-6 left-6 right-6 z-20 pointer-events-none flex justify-between items-end">
-        
-        <div class="pointer-events-auto flex flex-col items-center gap-2">
-            <span class="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Direção / Curva</span>
-            <div id="joystick-left-container" class="joystick-zone flex items-center justify-center touch-none">
-                <div id="joystick-left-stick" class="joystick-stick rounded-full transition-transform duration-75"></div>
-            </div>
-        </div>
-
-        <div class="flex flex-col gap-3 items-center">
-            <button id="action-btn" class="hidden bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black px-8 py-4 rounded-2xl shadow-xl border border-white/20 pointer-events-auto transform active:scale-95 transition-all flex items-center gap-3 text-xs tracking-wider uppercase">
-                <i class="fa-solid fa-key" id="action-icon"></i> <span id="action-text">Conduzir Carro</span>
-            </button>
-        </div>
-
-        <div class="pointer-events-auto flex items-end gap-4">
-            <div id="car-controls-right" class="hidden flex gap-4">
-                <button id="btn-brake" class="w-16 h-16 bg-red-600/20 active:bg-red-600/60 border border-red-500/30 text-red-400 rounded-2xl flex flex-col items-center justify-center shadow-lg active:scale-90 transition-all">
-                    <i class="fa-solid fa-caret-down text-lg"></i>
-                    <span class="text-[8px] font-black mt-0.5 uppercase">TRAVAR</span>
-                </button>
-                <button id="btn-gas" class="w-20 h-20 bg-emerald-600/20 active:bg-emerald-600/60 border border-emerald-500/30 text-emerald-400 rounded-2xl flex flex-col items-center justify-center shadow-lg active:scale-90 transition-all">
-                    <i class="fa-solid fa-gauge-high text-2xl"></i>
-                    <span class="text-[9px] font-black mt-1 uppercase">GÁS</span>
-                </button>
-            </div>
-
-            <div id="player-controls-right" class="flex gap-4">
-                <button id="btn-attack" class="w-18 h-18 bg-blue-600/20 active:bg-blue-600/60 border border-blue-500/30 text-blue-400 rounded-2xl flex flex-col items-center justify-center shadow-lg active:scale-90 transition-all p-3">
-                    <i class="fa-solid fa-hand-back-fist text-xl"></i>
-                    <span class="text-[8px] font-black mt-1 uppercase">COMBATE</span>
-                </button>
-            </div>
-
-            <div class="flex flex-col items-center gap-2">
-                <span class="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Câmara 3D</span>
-                <div id="joystick-right-container" class="joystick-zone flex items-center justify-center touch-none">
-                    <div id="joystick-right-stick" class="joystick-stick rounded-full transition-transform duration-75" style="background: radial-gradient(circle, #4b5563 0%, #1f2937 100%);"></div>
-                </div>
-            </div>
-        </div>
-
-    </div>
-
-    <!-- Menu Principal -->
-    <div id="menu-screen" class="fixed inset-0 bg-zinc-950 z-40 flex items-center justify-center p-8">
-        <div class="bg-zinc-900 border border-white/10 max-w-2xl w-full rounded-3xl p-8 flex gap-8 items-center shadow-2xl relative overflow-hidden">
-            <div class="absolute -right-16 -bottom-16 w-64 h-64 bg-blue-600/10 rounded-full blur-3xl"></div>
-            
-            <div class="flex-1 relative z-10">
-                <span class="text-[10px] bg-blue-600/20 text-blue-400 px-3 py-1 rounded-full font-black tracking-widest uppercase">MUNDO ABERTO REALISTA</span>
-                <h1 class="text-4xl font-black text-white tracking-tight mt-3 mb-2 leading-none uppercase">GRAND AUTO 3D</h1>
-                <p class="text-xs text-gray-400 leading-relaxed mb-6">Explora uma cidade moderna ultra-realista no teu telemóvel na horizontal. Rouba carros de NPCs, evita a polícia, compra moradias de luxo e domina as ruas.</p>
-                
-                <div class="flex flex-col gap-2.5 text-[11px] text-zinc-400 bg-black/40 p-4 rounded-2xl border border-white/5 mb-6">
-                    <div class="flex items-center gap-2"><i class="fa-solid fa-gamepad text-blue-500"></i> <span>Mover / Conduzir: Joystick Esquerdo</span></div>
-                    <div class="flex items-center gap-2"><i class="fa-solid fa-arrows-spin text-blue-500"></i> <span>Olhar à volta: Joystick Direito</span></div>
-                    <div class="flex items-center gap-2"><i class="fa-solid fa-car text-emerald-500"></i> <span>Carros realistas na cidade</span></div>
-                </div>
-
-                <button onclick="startImmersiveGame()" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold py-4 rounded-xl text-sm shadow-xl shadow-blue-900/30 active:scale-95 transition-all uppercase tracking-wider">
-                    Carregar Cidade Realista <i class="fa-solid fa-chevron-right ml-1"></i>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        // === CONFIGURAÇÃO DO JOGO ===
-        let scene, camera, renderer, clock;
-        let player, playerBody;
-        let buildings = [];
-        let vehicles = [];
-        let pedestrians = [];
-        
-        let inputMove = { x: 0, y: 0 };
-        let inputLook = { x: 0, y: 0 };
-        let driveControls = { gas: 0, brake: 0 };
-        
-        let camRotation = { yaw: 0, pitch: -0.3 };
-        let playerVelocity = new THREE.Vector3();
-        let isGameRunning = false;
-        
-        const groundSize = 500;
-        const PLAYER_SPEED = 0.2;
-        const CAR_SPEED = 0.5;
-
-        // Estados do jogador
-        let playerState = {
-            money: 3500,
-            health: 100,
-            isDriving: false,
-            currentVehicle: null,
-            wantedLevel: 0,
-            weapon: 'fist'
-        };
-
-        // === INICIALIZAR JOGO ===
-        function startImmersiveGame() {
-            document.getElementById('menu-screen').classList.add('hidden');
-            isGameRunning = true;
-            initCityEngine();
-            setupControls();
-            animate();
-        }
-
-        // === INICIALIZAR MOTOR 3D ===
-        function initCityEngine() {
-            clock = new THREE.Clock();
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x0a0c14);
-            scene.fog = new THREE.FogExp2(0x0a0c14, 0.012);
-
-            camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1000);
-
-            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-            document.body.appendChild(renderer.domElement);
-
-            // Iluminação
-            const moonLight = new THREE.DirectionalLight(0x2b3a55, 0.8);
-            moonLight.position.set(100, 150, 50);
-            moonLight.castShadow = true;
-            moonLight.shadow.mapSize.width = 2048;
-            moonLight.shadow.mapSize.height = 2048;
-            const d = 150;
-            moonLight.shadow.camera.left = -d;
-            moonLight.shadow.camera.right = d;
-            moonLight.shadow.camera.top = d;
-            moonLight.shadow.camera.bottom = -d;
-            scene.add(moonLight);
-
-            const ambient = new THREE.AmbientLight(0x152035, 0.6);
-            scene.add(ambient);
-
-            // Criar chão
-            createGround();
-
-            // Criar cidade
-            generateCity();
-
-            // Spawnar jogador
-            spawnPlayer();
-
-            // Spawnar carros
-            spawnVehicles();
-
-            // Spawnar peões
-            spawnPedestrians();
-
-            window.addEventListener('resize', () => {
-                camera.aspect = window.innerWidth / window.innerHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(window.innerWidth, window.innerHeight);
-            });
-        }
-
-        // === CRIAR CHÃO ===
-        function createGround() {
-            const groundGeo = new THREE.PlaneGeometry(groundSize, groundSize);
-            const groundMat = new THREE.MeshStandardMaterial({
-                color: 0x0a0a0f,
-                roughness: 0.7,
-                metalness: 0.1
-            });
-            const ground = new THREE.Mesh(groundGeo, groundMat);
-            ground.rotation.x = -Math.PI / 2;
-            ground.receiveShadow = true;
-            scene.add(ground);
-        }
-
-        // === GERAR CIDADE ===
-        function generateCity() {
-            // Criar edifícios em grid
-            const buildingSize = 30;
-            const spacing = 50;
-            
-            for (let x = -3; x < 4; x++) {
-                for (let z = -3; z < 4; z++) {
-                    const height = Math.random() * 40 + 20;
-                    const building = new THREE.Mesh(
-                        new THREE.BoxGeometry(buildingSize, height, buildingSize),
-                        new THREE.MeshStandardMaterial({
-                            color: new THREE.Color().setHSL(0.6, 0.1, 0.2),
-                            roughness: 0.5,
-                            metalness: 0.1
-                        })
-                    );
-                    building.position.set(x * spacing, height / 2, z * spacing);
-                    building.castShadow = true;
-                    building.receiveShadow = true;
-                    scene.add(building);
-                    buildings.push(building);
-                }
-            }
-        }
-
-        // === SPAWNAR JOGADOR ===
-        function spawnPlayer() {
-            player = new THREE.Mesh(
-                new THREE.CapsuleGeometry(1, 2, 4, 8),
-                new THREE.MeshStandardMaterial({ color: 0x1f2937 })
+    // Edifícios
+    for(let x=-3; x<4; x++) {
+        for(let z=-3; z<4; z++) {
+            let h = Math.random()*40+20;
+            let building = new THREE.Mesh(
+                new THREE.BoxGeometry(30, h, 30),
+                new THREE.MeshStandardMaterial({color:new THREE.Color().setHSL(0.6,0.1,0.2), roughness:0.5})
             );
-            player.position.set(0, 2, 0);
-            player.castShadow = true;
-            player.receiveShadow = true;
-            scene.add(player);
-            playerBody = player;
+            building.position.set(x*50, h/2, z*50);
+            building.castShadow = true;
+            building.receiveShadow = true;
+            scene.add(building);
+            buildings.push(building);
         }
+    }
 
-        // === SPAWNAR CARROS ===
-        function spawnVehicles() {
-            for (let i = 0; i < 5; i++) {
-                const x = (Math.random() - 0.5) * 200;
-                const z = (Math.random() - 0.5) * 200;
-                
-                const carBody = new THREE.Mesh(
-                    new THREE.BoxGeometry(2, 1.5, 5),
-                    new THREE.MeshStandardMaterial({ 
-                        color: new THREE.Color().setHSL(Math.random(), 0.8, 0.5),
-                        metalness: 0.8,
-                        roughness: 0.2
-                    })
-                );
-                carBody.position.set(x, 1, z);
-                carBody.castShadow = true;
-                carBody.receiveShadow = true;
-                scene.add(carBody);
+    // Jogador
+    player = new THREE.Mesh(
+        new THREE.CapsuleGeometry(1, 2, 4, 8),
+        new THREE.MeshStandardMaterial({color:0x1f2937})
+    );
+    player.position.set(0, 2, 0);
+    player.castShadow = true;
+    scene.add(player);
 
-                // Adicionar rodas
-                for (let w = 0; w < 4; w++) {
-                    const wheel = new THREE.Mesh(
-                        new THREE.CylinderGeometry(0.6, 0.6, 0.3, 16),
-                        new THREE.MeshStandardMaterial({ color: 0x111111 })
-                    );
-                    const offsetX = w % 2 === 0 ? -0.9 : 0.9;
-                    const offsetZ = w < 2 ? 1.2 : -1.2;
-                    wheel.rotation.z = Math.PI / 2;
-                    wheel.position.set(offsetX, 0.6, offsetZ);
-                    carBody.add(wheel);
-                }
+    // Carros
+    for(let i=0; i<5; i++) {
+        let carBody = new THREE.Mesh(
+            new THREE.BoxGeometry(2, 1.5, 5),
+            new THREE.MeshStandardMaterial({color:new THREE.Color().setHSL(Math.random(),0.8,0.5), metalness:0.8, roughness:0.2})
+        );
+        carBody.position.set((Math.random()-0.5)*200, 1, (Math.random()-0.5)*200);
+        carBody.castShadow = true;
+        carBody.receiveShadow = true;
+        scene.add(carBody);
+        vehicles.push({mesh:carBody, vel:new THREE.Vector3((Math.random()-0.5)*0.1, 0, (Math.random()-0.5)*0.1)});
+    }
 
-                vehicles.push({
-                    mesh: carBody,
-                    velocity: new THREE.Vector3(
-                        (Math.random() - 0.5) * 0.1,
-                        0,
-                        (Math.random() - 0.5) * 0.1
-                    )
-                });
-            }
+    // Peões
+    for(let i=0; i<8; i++) {
+        let ped = new THREE.Mesh(
+            new THREE.CapsuleGeometry(0.6, 1.7, 4, 8),
+            new THREE.MeshStandardMaterial({color:0x4f46e5})
+        );
+        ped.position.set((Math.random()-0.5)*150, 1.5, (Math.random()-0.5)*150);
+        ped.castShadow = true;
+        scene.add(ped);
+        pedestrians.push({mesh:ped, vel:new THREE.Vector3((Math.random()-0.5)*0.05, 0, (Math.random()-0.5)*0.05)});
+    }
+
+    window.addEventListener('resize', ()=>{
+        camera.aspect = window.innerWidth/window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+}
+
+function setupControls() {
+    // Toque para movimento
+    document.addEventListener('touchstart', (e) => {
+        if(e.touches.length === 1) {
+            let x = (e.touches[0].clientX / window.innerWidth) * 2 - 1;
+            let y = (e.touches[0].clientY / window.innerHeight) * 2 - 1;
+            inputMove.x = x;
+            inputMove.y = y;
         }
+    }, {passive: true});
 
-        // === SPAWNAR PEÕES ===
-        function spawnPedestrians() {
-            for (let i = 0; i < 8; i++) {
-                const x = (Math.random() - 0.5) * 150;
-                const z = (Math.random() - 0.5) * 150;
-                
-                const ped = new THREE.Mesh(
-                    new THREE.CapsuleGeometry(0.6, 1.7, 4, 8),
-                    new THREE.MeshStandardMaterial({ color: 0x4f46e5 })
-                );
-                ped.position.set(x, 1.5, z);
-                ped.castShadow = true;
-                ped.receiveShadow = true;
-                scene.add(ped);
-
-                pedestrians.push({
-                    mesh: ped,
-                    velocity: new THREE.Vector3(
-                        (Math.random() - 0.5) * 0.05,
-                        0,
-                        (Math.random() - 0.5) * 0.05
-                    ),
-                    direction: new THREE.Vector3()
-                });
-            }
+    document.addEventListener('touchmove', (e) => {
+        if(e.touches.length === 1) {
+            let x = (e.touches[0].clientX / window.innerWidth) * 2 - 1;
+            let y = (e.touches[0].clientY / window.innerHeight) * 2 - 1;
+            inputMove.x = x;
+            inputMove.y = y;
         }
+    }, {passive: true});
 
-        // === CONFIGURAR CONTROLOS ===
-        function setupControls() {
-            // Joystick esquerdo - Movimento
-            setupJoystick('joystick-left-container', 'joystick-left-stick', (x, y) => {
-                inputMove.x = x;
-                inputMove.y = y;
-            });
+    document.addEventListener('touchend', () => {
+        inputMove.x = 0;
+        inputMove.y = 0;
+    }, {passive: true});
 
-            // Joystick direito - Câmara
-            setupJoystick('joystick-right-container', 'joystick-right-stick', (x, y) => {
-                inputLook.x = x;
-                inputLook.y = y;
-            });
+    // Teclado para desktop
+    document.addEventListener('keydown', (e) => {
+        if(e.key === 'ArrowUp' || e.key === 'w') inputMove.y = 1;
+        if(e.key === 'ArrowDown' || e.key === 's') inputMove.y = -1;
+        if(e.key === 'ArrowLeft' || e.key === 'a') inputMove.x = -1;
+        if(e.key === 'ArrowRight' || e.key === 'd') inputMove.x = 1;
+    });
 
-            // Botões de gás e travão
-            document.getElementById('btn-gas').addEventListener('touchstart', () => {
-                driveControls.gas = 1;
-            });
-            document.getElementById('btn-gas').addEventListener('touchend', () => {
-                driveControls.gas = 0;
-            });
+    document.addEventListener('keyup', () => {
+        inputMove.x = 0;
+        inputMove.y = 0;
+    });
 
-            document.getElementById('btn-brake').addEventListener('touchstart', () => {
-                driveControls.brake = 1;
-            });
-            document.getElementById('btn-brake').addEventListener('touchend', () => {
-                driveControls.brake = 0;
-            });
+    // Mouse para câmara
+    document.addEventListener('mousemove', (e) => {
+        inputLook.x = (e.clientX / window.innerWidth) * 0.5 - 0.25;
+        inputLook.y = (e.clientY / window.innerHeight) * 0.5 - 0.25;
+    });
+}
 
-            // Botão de ataque
-            document.getElementById('btn-attack').addEventListener('touchstart', () => {
-                playerAttack();
-            });
-        }
+function animate() {
+    requestAnimationFrame(animate);
 
-        // === SETUP JOYSTICK ===
-        function setupJoystick(containerId, stickId, callback) {
-            const container = document.getElementById(containerId);
-            const stick = document.getElementById(stickId);
-            let isActive = false;
-            const maxDistance = 40;
+    playerVel.x = inputMove.x * 0.2;
+    playerVel.z = inputMove.y * 0.2;
+    player.position.add(playerVel);
 
-            function handleStart(e) {
-                isActive = true;
-                updateStick(e);
-            }
+    camRot.yaw += inputLook.x * 0.05;
+    camRot.pitch -= inputLook.y * 0.05;
+    camRot.pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, camRot.pitch));
 
-            function handleMove(e) {
-                if (isActive) updateStick(e);
-            }
+    camera.position.x = player.position.x + Math.sin(camRot.yaw)*8;
+    camera.position.y = player.position.y + 3;
+    camera.position.z = player.position.z + Math.cos(camRot.yaw)*8;
+    camera.lookAt(player.position.x, player.position.y+1, player.position.z);
 
-            function handleEnd() {
-                isActive = false;
-                stick.style.transform = 'translate(0, 0)';
-                callback(0, 0);
-            }
+    vehicles.forEach(v=>{
+        v.mesh.position.add(v.vel);
+        if(Math.abs(v.mesh.position.x)>250) v.vel.x *= -1;
+        if(Math.abs(v.mesh.position.z)>250) v.vel.z *= -1;
+    });
 
-            function updateStick(e) {
-                const touch = e.touches[0] || e;
-                const rect = container.getBoundingClientRect();
-                const centerX = rect.left + rect.width / 2;
-                const centerY = rect.top + rect.height / 2;
+    pedestrians.forEach(p=>{
+        p.mesh.position.add(p.vel);
+        if(Math.random()<0.01) { p.vel.x=(Math.random()-0.5)*0.1; p.vel.z=(Math.random()-0.5)*0.1; }
+        if(Math.abs(p.mesh.position.x)>250) p.vel.x*=-1;
+        if(Math.abs(p.mesh.position.z)>250) p.vel.z*=-1;
+    });
 
-                let dx = touch.clientX - centerX;
-                let dy = touch.clientY - centerY;
-                const distance = Math.sqrt(dx * dx + dy * dy);
+    renderer.render(scene, camera);
+}
 
-                if (distance > maxDistance) {
-                    dx = (dx / distance) * maxDistance;
-                    dy = (dy / distance) * maxDistance;
-                }
-
-                stick.style.transform = `translate(${dx}px, ${dy}px)`;
-                callback(dx / maxDistance, dy / maxDistance);
-            }
-
-            container.addEventListener('touchstart', handleStart, { passive: true });
-            container.addEventListener('touchmove', handleMove, { passive: true });
-            container.addEventListener('touchend', handleEnd, { passive: true });
-            container.addEventListener('mousedown', handleStart);
-            document.addEventListener('mousemove', handleMove);
-            document.addEventListener('mouseup', handleEnd);
-        }
-
-        // === ATAQUE DO JOGADOR ===
-        function playerAttack() {
-            if (playerState.isDriving) return;
-            showNotification('Ataque!');
-            playerState.wantedLevel = Math.min(5, playerState.wantedLevel + 1);
-            updateWantedLevel();
-        }
-
-        // === ATUALIZAR VIDA ===
-        function updateHealth() {
-            const healthPercent = playerState.health;
-            document.getElementById('health-bar').style.width = healthPercent + '%';
-            document.getElementById('health-pct').textContent = Math.round(healthPercent) + '%';
-        }
-
-        // === ATUALIZAR NÍVEL PROCURADO ===
-        function updateWantedLevel() {
-            const stars = document.querySelectorAll('#wanted-stars i');
-            stars.forEach((star, index) => {
-                if (index < playerState.wantedLevel) {
-                    star.classList.remove('fa-regular');
-                    star.classList.add('fa-solid');
-                    star.style.color = '#fbbf24';
-                } else {
-                    star.classList.add('fa-regular');
-                    star.classList.remove('fa-solid');
-                    star.style.color = '#d1d5db';
-                }
-            });
-        }
-
-        // === NOTIFICAÇÕES ===
-        function showNotification(text) {
-            const notif = document.getElementById('gta-notif');
-            document.getElementById('gta-notif-text').textContent = text;
-            notif.classList.remove('opacity-0', '-translate-x-12');
-            notif.classList.add('opacity-100', 'translate-x-0');
-            
-            setTimeout(() => {
-                notif.classList.add('opacity-0', '-translate-x-12');
-                notif.classList.remove('opacity-100', 'translate-x-0');
-            }, 2000);
-        }
-
-        // === ATUALIZAR HUD ===
-        function updateHUD() {
-            document.getElementById('player-money').textContent = playerState.money.toLocaleString('pt-PT');
-            updateHealth();
-
-            if (playerState.isDriving) {
-                document.getElementById('car-hud').classList.remove('hidden');
-                document.getElementById('player-controls-right').classList.add('hidden');
-                document.getElementById('car-controls-right').classList.remove('hidden');
-            } else {
-                document.getElementById('car-hud').classList.add('hidden');
-                document.getElementById('player-controls-right').classList.remove('hidden');
-                document.getElementById('car-controls-right').classList.add('hidden');
-            }
-        }
-
-        // === LOOP PRINCIPAL ===
-        function animate() {
-            requestAnimationFrame(animate);
-
-            if (!isGameRunning) return;
-
-            const delta = clock.getDelta();
-
-            // Atualizar posição do jogador
-            if (!playerState.isDriving) {
-                playerVelocity.x = inputMove.x * PLAYER_SPEED;
-                playerVelocity.z = inputMove.y * PLAYER_SPEED;
-                player.position.add(playerVelocity);
-            }
-
-            // Atualizar câmara
-            camRotation.yaw += inputLook.x * 0.05;
-            camRotation.pitch -= inputLook.y * 0.05;
-            camRotation.pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camRotation.pitch));
-
-            camera.position.x = player.position.x + Math.sin(camRotation.yaw) * 8;
-            camera.position.y = player.position.y + 3;
-            camera.position.z = player.position.z + Math.cos(camRotation.yaw) * 8;
-            camera.lookAt(player.position.x, player.position.y + 1, player.position.z);
-
-            // Atualizar carros
-            vehicles.forEach(vehicle => {
-                vehicle.mesh.position.add(vehicle.velocity);
-                if (Math.abs(vehicle.mesh.position.x) > 250 || Math.abs(vehicle.mesh.position.z) > 250) {
-                    vehicle.velocity.multiplyScalar(-1);
-                }
-            });
-
-            // Atualizar peões
-            pedestrians.forEach(ped => {
-                ped.mesh.position.add(ped.velocity);
-                if (Math.random() < 0.01) {
-                    ped.velocity.x = (Math.random() - 0.5) * 0.1;
-                    ped.velocity.z = (Math.random() - 0.5) * 0.1;
-                }
-                if (Math.abs(ped.mesh.position.x) > 250 || Math.abs(ped.mesh.position.z) > 250) {
-                    ped.velocity.multiplyScalar(-1);
-                }
-            });
-
-            updateHUD();
-            renderer.render(scene, camera);
-        }
-
-        // Verificar orientação do telemóvel
-        function checkOrientation() {
-            const rotateScreen = document.getElementById('rotate-device-screen');
-            if (window.innerHeight > window.innerWidth) {
-                rotateScreen.style.display = 'flex';
-            } else {
-                rotateScreen.style.display = 'none';
-            }
-        }
-
-        window.addEventListener('orientationchange', checkOrientation);
-        checkOrientation();
-    </script>
+init3D();
+setupControls();
+animate();
+</script>
 </body>
 </html>
