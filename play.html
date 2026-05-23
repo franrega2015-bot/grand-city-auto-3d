@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, orientation=landscape">
+    <title>Grand City Auto 3D</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Montserrat', sans-serif; overflow: hidden; width: 100vw; height: 100vh; background: #050508; }
+        canvas { display: block; width: 100%; height: 100%; }
+        .joystick-zone { width: 140px; height: 140px; background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 70%, rgba(255,255,255,0.08) 100%); border: 1.5px solid rgba(255, 255, 255, 0.15); border-radius: 50%; backdrop-filter: blur(8px); box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 0 20px rgba(255,255,255,0.05); }
+        .joystick-stick { width: 55px; height: 55px; background: radial-gradient(circle, #2563eb 0%, #1d4ed8 100%); border: 2px solid rgba(255,255,255,0.3); box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4); border-radius: 50%; }
+    </style>
+</head>
+<body>
+
+    <div id="rotate-device" style="display:none; position:fixed; inset:0; background:#000; z-index:999; flex-direction:column; align-items:center; justify-content:center; color:#fff; text-align:center;">
+        <div style="font-size:4rem; margin-bottom:2rem; animation:bounce 1s infinite;"><i class="fas fa-rotate"></i></div>
+        <h2 style="font-size:2rem; font-weight:900; margin-bottom:1rem;">Roda o teu Telemóvel</h2>
+        <p style="color:#aaa; max-width:80%; font-size:0.9rem;">Joga na horizontal para melhor experiência</p>
+    </div>
+
+    <!-- HUD Esquerdo -->
+    <div style="position:fixed; top:20px; left:20px; z-index:100; display:flex; flex-direction:column; gap:10px;">
+        <div style="background:rgba(0,0,0,0.75); backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,0.1); border-radius:20px; padding:15px; display:flex; align-items:center; gap:15px;">
+            <div style="width:50px; height:50px; border-radius:50%; background:linear-gradient(135deg,#2563eb,#06b6d4); display:flex; align-items:center; justify-content:center; color:#fff; font-size:1.5rem; border:2px solid rgba(255,255,255,0.2);">
+                <i class="fas fa-user-ninja"></i>
+            </div>
+            <div>
+                <div style="font-size:0.7rem; color:#999; font-weight:900; letter-spacing:1px;">NÍVEL PROCURADO</div>
+                <div style="display:flex; gap:5px; color:#fbbf24; font-size:0.9rem; margin:5px 0;">
+                    <i class="fas fa-star"></i><i class="far fa-star"></i><i class="far fa-star"></i><i class="far fa-star"></i><i class="far fa-star"></i>
+                </div>
+                <div style="font-size:1.3rem; font-weight:900; color:#10b981;">$<span id="money">3500</span></div>
+            </div>
+        </div>
+        <div style="background:rgba(0,0,0,0.6); backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,0.1); border-radius:15px; padding:12px; width:220px;">
+            <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:#f87171; font-weight:900; margin-bottom:8px;">
+                <span>VIDA</span> <span id="hp-pct">100%</span>
+            </div>
+            <div style="width:100%; background:#27272a; height:8px; border-radius:10px; overflow:hidden;">
+                <div id="hp-bar" style="background:linear-gradient(90deg,#dc2626,#f43f5e); height:100%; width:100%; transition:0.3s;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- HUD Direito -->
+    <div style="position:fixed; top:20px; right:20px; z-index:100; display:flex; gap:15px;">
+        <div style="background:rgba(0,0,0,0.75); backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,0.1); border-radius:20px; padding:15px; text-align:center; width:100px;">
+            <div style="font-size:0.7rem; color:#999; font-weight:900; letter-spacing:1px; margin-bottom:10px;">ARMA</div>
+            <div style="font-size:2rem; color:#fff; margin-bottom:8px;"><i class="fas fa-hand-fist"></i></div>
+            <div style="font-size:0.75rem; color:#999; font-weight:900;">Punhos</div>
+        </div>
+    </div>
+
+    <!-- Notificação -->
+    <div id="notif" style="position:fixed; top:120px; left:20px; background:rgba(37,99,235,0.9); color:#fff; padding:15px 20px; border-radius:0 15px 15px 0; border-left:4px solid #06b6d4; font-weight:900; font-size:0.8rem; letter-spacing:1px; opacity:0; transform:translateX(-50px); transition:0.3s; z-index:100; display:flex; gap:10px; align-items:center; pointer-events:none;">
+        <i class="fas fa-bell"></i> <span id="notif-text">Bem-vindo!</span>
+    </div>
+
+    <!-- Controlos -->
+    <div style="position:fixed; bottom:20px; left:20px; right:20px; z-index:100; display:flex; justify-content:space-between; align-items:flex-end;">
+        <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+            <div style="font-size:0.7rem; color:#888; font-weight:900; letter-spacing:1px;">MOVIMENTO</div>
+            <div id="joystick-left" class="joystick-zone" style="display:flex; align-items:center; justify-content:center;">
+                <div class="joystick-stick"></div>
+            </div>
+        </div>
+        <div style="display:flex; gap:10px; align-items:flex-end;">
+            <button id="btn-attack" style="width:70px; height:70px; background:rgba(37,99,235,0.2); border:1px solid rgba(37,99,235,0.3); color:#3b82f6; border-radius:15px; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; transition:0.1s; font-size:1.5rem;">
+                <i class="fas fa-hand-back-fist"></i>
+                <span style="font-size:0.6rem; font-weight:900; margin-top:3px;">COMBATE</span>
+            </button>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+            <div style="font-size:0.7rem; color:#888; font-weight:900; letter-spacing:1px;">CÂMARA</div>
+            <div id="joystick-right" class="joystick-zone" style="display:flex; align-items:center; justify-content:center;">
+                <div class="joystick-stick" style="background:radial-gradient(circle,#4b5563,#1f2937);"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let scene, camera, renderer, clock;
+        let player, playerVel = new THREE.Vector3();
+        let buildings = [], vehicles = [], pedestrians = [];
+        let inputMove = {x:0, y:0}, inputLook = {x:0, y:0};
+        let camRot = {yaw:0, pitch:-0.3};
+        let health = 100;
+
+        function checkOrientation() {
+            document.getElementById('rotate-device').style.display = window.innerHeight > window.innerWidth ? 'flex' : 'none';
+        }
+        window.addEventListener('orientationchange', checkOrientation);
+        checkOrientation();
+
+        function init3D() {
+            clock = new THREE.Clock();
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0c14);
+            scene.fog = new THREE.FogExp2(0x0a0c14, 0.012);
+
+            camera = new THREE.PerspectiveCamera(55, window.innerWidth/window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({antialias:true});
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            document.body.appendChild(renderer.domElement);
+
+            // Iluminação
+            let light = new THREE.DirectionalLight(0x2b3a55, 0.8);
+            light.position.set(100, 150, 50);
+            light.castShadow = true;
+            light.shadow.mapSize.width = 2048;
+            light.shadow.mapSize.height = 2048;
+            const d = 150;
+            light.shadow.camera.left = -d;
+            light.shadow.camera.right = d;
+            light.shadow.camera.top = d;
+            light.shadow.camera.bottom = -d;
+            scene.add(light);
+            scene.add(new THREE.AmbientLight(0x152035, 0.6));
+
+            // Chão
+            let groundGeo = new THREE.PlaneGeometry(500, 500);
+            let groundMat = new THREE.MeshStandardMaterial({color:0x0a0a0f});
+            let ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.rotation.x = -Math.PI/2;
+            scene.add(ground);
+
+            // Edifícios
+            for(let x=-3; x<4; x++) {
+                for(let z=-3; z<4; z++) {
+                    let h = Math.random()*40+20;
+                    let building = new THREE.Mesh(
+                        new THREE.BoxGeometry(30, h, 30),
+                        new THREE.MeshStandardMaterial({color:new THREE.Color().setHSL(0.6,0.1,0.2)})
+                    );
+                    building.position.set(x*50, h/2, z*50);
+                    building.castShadow = true;
+                    scene.add(building);
+                    buildings.push(building);
+                }
+            }
+
+            // Jogador
+            player = new THREE.Mesh(
+                new THREE.CapsuleGeometry(1, 2, 4, 8),
+                new THREE.MeshStandardMaterial({color:0x1f2937})
+            );
+            player.position.set(0, 2, 0);
+            player.castShadow = true;
+            scene.add(player);
+
+            // Carros
+            for(let i=0; i<5; i++) {
+                let carBody = new THREE.Mesh(
+                    new THREE.BoxGeometry(2, 1.5, 5),
+                    new THREE.MeshStandardMaterial({color:new THREE.Color().setHSL(Math.random(),0.8,0.5), metalness:0.8})
+                );
+                carBody.position.set((Math.random()-0.5)*200, 1, (Math.random()-0.5)*200);
+                carBody.castShadow = true;
+                scene.add(carBody);
+                vehicles.push({mesh:carBody, vel:new THREE.Vector3((Math.random()-0.5)*0.1, 0, (Math.random()-0.5)*0.1)});
+            }
+
+            // Peões
+            for(let i=0; i<8; i++) {
+                let ped = new THREE.Mesh(
+                    new THREE.CapsuleGeometry(0.6, 1.7, 4, 8),
+                    new THREE.MeshStandardMaterial({color:0x4f46e5})
+                );
+                ped.position.set((Math.random()-0.5)*150, 1.5, (Math.random()-0.5)*150);
+                ped.castShadow = true;
+                scene.add(ped);
+                pedestrians.push({mesh:ped, vel:new THREE.Vector3((Math.random()-0.5)*0.05, 0, (Math.random()-0.5)*0.05)});
+            }
+
+            window.addEventListener('resize', ()=>{
+                camera.aspect = window.innerWidth/window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        }
+
+        function setupJoystick(containerId, callback) {
+            const container = document.getElementById(containerId);
+            const stick = container.querySelector('.joystick-stick');
+            let isActive = false;
+            const maxDist = 40;
+
+            function updateStick(e) {
+                const touch = e.touches?.[0] || e;
+                const rect = container.getBoundingClientRect();
+                const cx = rect.left + rect.width/2;
+                const cy = rect.top + rect.height/2;
+                let dx = touch.clientX - cx;
+                let dy = touch.clientY - cy;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                if(dist > maxDist) { dx = dx/dist*maxDist; dy = dy/dist*maxDist; }
+                stick.style.transform = `translate(${dx}px, ${dy}px)`;
+                callback(dx/maxDist, dy/maxDist);
+            }
+
+            container.addEventListener('touchstart', ()=>{isActive=true;}, {passive:true});
+            container.addEventListener('touchmove', (e)=>{if(isActive) updateStick(e);}, {passive:true});
+            container.addEventListener('touchend', ()=>{isActive=false; stick.style.transform='translate(0,0)'; callback(0,0);}, {passive:true});
+            container.addEventListener('mousedown', ()=>{isActive=true;});
+            document.addEventListener('mousemove', (e)=>{if(isActive) updateStick(e);});
+            document.addEventListener('mouseup', ()=>{isActive=false; stick.style.transform='translate(0,0)'; callback(0,0);});
+        }
+
+        function showNotif(text) {
+            let n = document.getElementById('notif');
+            document.getElementById('notif-text').textContent = text;
+            n.style.opacity = '1';
+            n.style.transform = 'translateX(0)';
+            setTimeout(()=>{n.style.opacity='0'; n.style.transform='translateX(-50px)';}, 2000);
+        }
+
+        function updateHealth() {
+            document.getElementById('hp-bar').style.width = health + '%';
+            document.getElementById('hp-pct').textContent = Math.round(health) + '%';
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            playerVel.x = inputMove.x * 0.2;
+            playerVel.z = inputMove.y * 0.2;
+            player.position.add(playerVel);
+
+            camRot.yaw += inputLook.x * 0.05;
+            camRot.pitch -= inputLook.y * 0.05;
+            camRot.pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, camRot.pitch));
+
+            camera.position.x = player.position.x + Math.sin(camRot.yaw)*8;
+            camera.position.y = player.position.y + 3;
+            camera.position.z = player.position.z + Math.cos(camRot.yaw)*8;
+            camera.lookAt(player.position.x, player.position.y+1, player.position.z);
+
+            vehicles.forEach(v=>{
+                v.mesh.position.add(v.vel);
+                if(Math.abs(v.mesh.position.x)>250) v.vel.x *= -1;
+                if(Math.abs(v.mesh.position.z)>250) v.vel.z *= -1;
+            });
+
+            pedestrians.forEach(p=>{
+                p.mesh.position.add(p.vel);
+                if(Math.random()<0.01) { p.vel.x=(Math.random()-0.5)*0.1; p.vel.z=(Math.random()-0.5)*0.1; }
+                if(Math.abs(p.mesh.position.x)>250) p.vel.x*=-1;
+                if(Math.abs(p.mesh.position.z)>250) p.vel.z*=-1;
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        init3D();
+        setupJoystick('joystick-left', (x,y)=>{inputMove.x=x; inputMove.y=y;});
+        setupJoystick('joystick-right', (x,y)=>{inputLook.x=x; inputLook.y=y;});
+        
+        document.getElementById('btn-attack').addEventListener('click', ()=>{
+            showNotif('Ataque!');
+            health = Math.max(0, health-10);
+            updateHealth();
+        });
+
+        animate();
+    </script>
+</body>
+</html>
